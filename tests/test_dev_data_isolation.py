@@ -74,6 +74,7 @@ def test_the_window_title_announces_development_data(monkeypatch, tmp_path):
     QtWidgets = pytest.importorskip("PySide6.QtWidgets")
     from PySide6.QtWidgets import QApplication
 
+    from app import version
     from app.db import store
     from app.gui.main_window import MainWindow
 
@@ -85,7 +86,9 @@ def test_the_window_title_announces_development_data(monkeypatch, tmp_path):
     monkeypatch.delenv(config.ENV_DATA_FOLDER)
     monkeypatch.setattr(config, "PROJECT_ROOT", tmp_path)
     plain = MainWindow(store.connect(tmp_path / "other.db"))
-    assert plain.windowTitle() == "Cell Biology Exam Grader"
+    # The version label is part of the title; the development note is not.
+    assert plain.windowTitle() == version.TITLE
+    assert "DEVELOPMENT" not in plain.windowTitle()
     assert app is not None
 
 

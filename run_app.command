@@ -100,7 +100,9 @@ fi
 # mistaken for the live one.
 venv/bin/python3 - <<'PY'
 from app.db import config, store
+from app.version import TITLE
 where = "DEVELOPMENT" if config.is_development_data() else "live"
+print(f"==> {TITLE}")
 print(f"==> Using the {where} database: {store.default_db_path()}")
 PY
 

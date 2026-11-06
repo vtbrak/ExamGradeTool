@@ -1,6 +1,13 @@
 # Cell Biology Exam Grader — Roadmap
 
-## Where things stand (October 2026)
+## Where things stand — v1.1 beta (November 2026)
+
+**This copy is version 1.1, beta.** The version lives in `app/version.py` and
+nowhere else; it shows in the window title and the launcher prints it, so a
+screenshot or a question about behaviour says which copy it came from. Beta
+because the app is in real use but still changing in response to that use.
+The matching git tag is `v1.1-beta` on `github.com/vtbrak/ExamGradeTool`
+(private).
 
 The app is built and in use. **Items 1–8, 14 and 15 are done.** Items 9, 10, 11
 and 12 are **retired — not needed** (see that section: course data is imported

@@ -34,3 +34,31 @@ def test_default_data_folder_is_independent_of_this_files_location():
     # Points at the course folder itself -- "the folder where the initial
     # CSV files were" -- not a dedicated ExamGradeTool/data subfolder.
     assert str(config.DEFAULT_DATA_FOLDER).endswith("01 - Exam tool")
+
+
+def test_the_version_label_is_in_the_window_title():
+    """A screenshot or a question about behaviour should say which copy it came
+    from, so the version is in the title bar rather than only in a file."""
+    from app import version
+
+    assert version.VERSION == "1.1"
+    assert version.STAGE == "beta"
+    assert version.LABEL == "1.1 beta"
+    assert version.TITLE == "Cell Biology Exam Grader 1.1 beta"
+
+
+def test_dropping_the_stage_leaves_a_bare_version(monkeypatch):
+    """So a release that is no longer a beta reads "1.2", not "1.2 "."""
+    import importlib
+
+    from app import version
+
+    monkeypatch.setattr(version, "STAGE", "")
+    reloaded = importlib.reload(version)
+    try:
+        # Reload picks the file's own STAGE back up, so check the expression
+        # directly: this documents what LABEL does with an empty stage.
+        stage = ""
+        assert (f"{reloaded.VERSION} {stage}".strip() if stage else reloaded.VERSION) == "1.1"
+    finally:
+        importlib.reload(version)

@@ -7,6 +7,7 @@ from app.db import store
 from app.db.config import is_development_data
 from app.gui.errors import describe_error, install_excepthook
 from app.gui.main_window import MainWindow
+from app.version import APP_NAME
 from app.gui import dialogs
 
 
@@ -51,7 +52,7 @@ def open_database(db_path):
 
 def main():
     app = QApplication(sys.argv)
-    app.setApplicationName("Cell Biology Exam Grader")
+    app.setApplicationName(APP_NAME)
     install_excepthook()
     conn = open_database(store.default_db_path())
     if conn is None:

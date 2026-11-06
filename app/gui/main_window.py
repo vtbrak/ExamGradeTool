@@ -30,6 +30,7 @@ from app.gui.reports_view import ReportsView
 from app.gui.results_view import ResultsView
 from app.gui import dialogs
 from app.gui.widgets import divide_tab_bar
+from app.version import TITLE
 
 ACCEPTED_SUFFIXES = (".csv", ".xlsx", ".xls")
 
@@ -101,7 +102,7 @@ class MainWindow(QMainWindow):
         # be mistaken for the live one.
         from app.db.config import is_development_data
 
-        title = "Cell Biology Exam Grader"
+        title = TITLE
         if is_development_data():
             title += f"  —  DEVELOPMENT DATA  ({store.default_db_path()})"
         self.setWindowTitle(title)
