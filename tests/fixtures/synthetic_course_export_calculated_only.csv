@@ -1,0 +1,3 @@
+OrgDefinedId,Last Name,First Name,Email,Exam 1 Points Grade <Numeric MaxPoints:72 Category:Exams>,Exam 2 Points Grade <Numeric MaxPoints:72 Category:Exams>,Exams Subtotal Numerator,Exams Subtotal Denominator,Lab Grade Points Grade <Numeric MaxPoints:150>,Calculated Final Grade Numerator,Calculated Final Grade Denominator,Final Grade
+700001,Foxtrot,Fay,fay@example.edu,59,69,269,288,142,427,450,94.88888888888889
+700002,Golf,Gil,gil@example.edu,62.5,Exempt,190.5,216,135,337.5,378,89.28571428571429

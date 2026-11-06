@@ -1,0 +1,24 @@
+# --- real course data never goes in the repository -------------------------
+# sample_data/ holds actual D2L exports, and Final.xls.xlsx has a real class
+# roster in it. The app and all 528 tests run without this folder; the tests
+# use tests/fixtures/, whose name and ID columns are stripped.
+sample_data/
+
+# Databases, wherever they turn up: grades.db lives outside the project, but a
+# stray copy or a dated backup must never be committed.
+*.db
+*.db-journal
+dev-data/
+data/*.db
+data/*.db-journal
+
+# This marker is what sends a copy to dev-data/ instead of the live database.
+# Keeping it out means a fresh clone is a production copy by default.
+.dev-copy
+
+# --- machine-local ---------------------------------------------------------
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store

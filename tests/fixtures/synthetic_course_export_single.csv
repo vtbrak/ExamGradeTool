@@ -1,0 +1,3 @@
+OrgDefinedId,Last Name,First Name,Exam 1 Points Grade <Numeric MaxPoints:80 Category:>,Exam 2 Points Grade <Numeric MaxPoints:80 Category:>,Extra Credit 1 Points Grade <Numeric MaxPoints:4 Category:>,Lab Grade Points Grade <Numeric MaxPoints:299>,Adjusted Final Grade Numerator,Adjusted Final Grade Denominator,End-of-Line Indicator
+800001,Delta,Dan,55,57,4,272.5,540.5,635,#
+800002,Echo,Eve,68,74,4,260.5,583.5,635,#
