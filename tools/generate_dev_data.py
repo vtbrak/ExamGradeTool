@@ -4,8 +4,8 @@ Writes six completed semesters into the class record and one current semester of
 scanned exams, 20 students each. Deterministic, so re-running gives the same
 data.
 
-    venv/bin/python tools/generate_dev_data.py          # fills dev-data/grades.db
-    venv/bin/python tools/generate_dev_data.py --reset  # wipes it first
+    conda run -n examgradetool python tools/generate_dev_data.py          # fills dev-data/grades.db
+    conda run -n examgradetool python tools/generate_dev_data.py --reset  # wipes it first
 
 **It refuses to run against anything but a development database.** The guard is
 `config.is_development_data()`, the same one that keeps the app off the live

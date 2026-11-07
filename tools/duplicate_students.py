@@ -4,13 +4,13 @@ Two steps, with a review in between. Nothing is ever merged without someone
 saying so, and the whole thing runs against a *copy* of the database.
 
     # 1. propose -- writes two CSVs, changes nothing
-    venv/bin/python tools/duplicate_students.py report --db grades_copy.db
+    conda run -n examgradetool python tools/duplicate_students.py report --db grades_copy.db
 
     # 2. open duplicates_review.csv, set each `action` to merge or skip;
     #    open conflicts_review.csv, set `use_id` where you disagree
 
     # 3. apply -- merges only what was approved, and writes merge_log.csv
-    venv/bin/python tools/duplicate_students.py apply --db grades_copy.db
+    conda run -n examgradetool python tools/duplicate_students.py apply --db grades_copy.db
 
 Afterwards: back up the live database (File > Backup Database... in the app),
 then put the merged copy in its place.
