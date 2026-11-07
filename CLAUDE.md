@@ -83,8 +83,9 @@ backup fails, the action is cancelled rather than proceeding without it.
 
 A `QMessageBox` left unpatched blocks forever and hangs the whole suite. Patch
 the statics the code calls (`question`, `information`, `warning`, `critical`).
-Run with `QT_QPA_PLATFORM=offscreen`.
+Run with `QT_QPA_PLATFORM=offscreen`, in the `examgradetool` conda
+environment that `install examgradetool.command` creates.
 
 ```bash
-QT_QPA_PLATFORM=offscreen venv/bin/python -m pytest -q
+QT_QPA_PLATFORM=offscreen conda run --no-capture-output -n examgradetool python -m pytest -q
 ```

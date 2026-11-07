@@ -64,26 +64,33 @@ rule between them.
   all past course grades, the same scale for exam averages, and a student search
   showing each semester's course and exam standing.
 
-**How to run it.** Double-click `run_app.command` in Finder. On a Mac where the
-app hasn't been set up yet — or after copying this folder from another Mac — it
-builds its own Python environment (`venv/`) from `requirements.txt` first. That
-needs an internet connection and takes a few minutes; after that it starts
-straight away. `./run_app.command --check` reports whether setup is needed
-without installing anything or opening the app. Any Python 3.9–3.13 works,
-including the one built into macOS. There is no installer or DMG any more
-(see "Installer removed" below).
+**How to run it.** Two files in the folder, both double-clicked in Finder:
 
-**Copying this folder.** The folder is self-contained and can live anywhere —
-including somewhere this project's development copy can't see. Copy it, then
-double-click `run_app.command`. Verified from a copy: the launcher, the full
-test suite, the duplicate-cleanup tool and the app window all work unchanged.
+| File | When |
+|---|---|
+| `install examgradetool.command` | Once per Mac, and again after `requirements.txt` changes |
+| `open examgradetool.command` | Every time you want the app |
 
-- **With `venv/` included** (~1.3 GB): works immediately on this Mac.
-- **Without `venv/`** (~4 MB): the first launch rebuilds it from
-  `requirements.txt`, which needs an internet connection and a few minutes.
-  This is also what happens on a different Mac, where the copied `venv/`
-  wouldn't run anyway. `./run_app.command --check` says which state a copy is
-  in without installing anything.
+**The environment lives in conda, not in the folder.** `install` finds conda by
+searching for `etc/profile.d/conda.sh` — under `/opt/miniconda3`,
+`/opt/anaconda3`, `~/miniconda3`, `~/anaconda3` and the Homebrew Caskroom paths,
+after asking `conda info --base` if conda is already on PATH. It then creates an
+`examgradetool` environment (Python 3.12) if one doesn't exist and pip-installs
+`requirements.txt` into it. Running it again updates the existing environment
+rather than rebuilding it, so repeating it is safe.
+
+That search is the whole reason the file exists: a `.command` double-clicked in
+Finder gets a non-interactive shell that hasn't run `~/.zshrc`, so `conda` is
+usually *not* on PATH even when it works fine in a Terminal window. The shared
+logic lives in `tools/conda_env.sh`, sourced by both files so the two can't
+drift apart.
+
+`open` deliberately creates nothing. If the environment is missing it says to
+run `install` first rather than quietly building one while somebody waits to
+grade an exam. It prints the version and which database before the window opens.
+
+**Copying this folder.** It no longer carries a 1.3 GB `venv/`, so a copy is a
+few MB. On a new Mac: copy the folder, run `install examgradetool.command` once.
 
 **Two files must NOT be copied to a production folder:** `.dev-copy` and
 `dev-data/`. They are what mark a copy as a development one, and a production
@@ -106,18 +113,22 @@ mv "$PROD" "$PROD-old-$(date +%Y%m%d)"
 rsync -a --exclude venv/ --exclude .dev-copy --exclude dev-data/ \
          --exclude sample_data/ --exclude .pytest_cache/ --exclude __pycache__/ \
          "$DEV"/ "$PROD"/
-mv "$PROD-old-$(date +%Y%m%d)/venv" "$PROD/venv"
 
-# 3. check before trusting it -- the second line must NOT say DEVELOPMENT
-cd "$PROD" && ./run_app.command --check && \
-  QT_QPA_PLATFORM=offscreen ./venv/bin/python -m pytest tests/ -q
+# 3. check before trusting it
+cd "$PROD" && QT_QPA_PLATFORM=offscreen \
+  conda run --no-capture-output -n examgradetool python -m pytest tests/ -q
 ```
+
+The conda environment is shared by every copy on the Mac, so a production copy
+needs no install of its own once `install examgradetool.command` has been run.
+Confirm it opens the live database before trusting it — `open
+examgradetool.command` prints that line, and it must not say DEVELOPMENT.
 
 Moving the old folder aside rather than copying over the top leaves a complete
 rollback and clears out anything stale. Keep the `-old-` folder until satisfied,
 then trash it — checking it first for anything of your own.
 
-**Confirm which database a copy will use.** `run_app.command` prints it before
+**Confirm which database a copy will use.** `open examgradetool.command` prints it before
 the window opens, and the window title says `— DEVELOPMENT DATA` when it isn't
 the live one. In a production copy that line should name the course folder.
 
@@ -139,7 +150,7 @@ every production copy on this Mac:
   - `app/core/` — parsing, grading, semester codes
   - `app/db/` — database schema and queries
   - `app/gui/` — the window and its tabs
-  - `tests/` — test suite; run with `venv/bin/python -m pytest tests/`
+  - `tests/` — test suite; run with `conda run -n examgradetool python -m pytest tests/`
   - `tools/` — `duplicate_students.py`, the one-off duplicate cleanup (item 8)
   - `sample_data/` — the four de-identified D2L course-grade exports used
     while building items 1, 6 and 7. The tests don't read them; they have
@@ -300,7 +311,7 @@ move production as well. A development copy keeps its own settings file inside
 its own data folder.
 
 **Visible at a glance:** the window title appends
-`— DEVELOPMENT DATA (<path>)`, and `run_app.command` prints which database it is
+`— DEVELOPMENT DATA (<path>)`, and the launcher prints which database it is
 about to open before the window appears.
 
 **Writing these guards immediately caught a real bug.** The long-standing
@@ -1251,9 +1262,9 @@ set. They arose from a decimal ID (`"1234567.0"`), a dropped leading zero
 two-step command-line tool:
 
 ```
-venv/bin/python tools/duplicate_students.py report --db grades_copy.db
+conda run -n examgradetool python tools/duplicate_students.py report --db grades_copy.db
 # review duplicates_review.csv and conflicts_review.csv
-venv/bin/python tools/duplicate_students.py apply  --db grades_copy.db
+conda run -n examgradetool python tools/duplicate_students.py apply  --db grades_copy.db
 ```
 
 - **Form — one-off, reviewed, never automatic.** `report` proposes pairs and
@@ -1384,7 +1395,7 @@ fixtures now use realistic 7-digit IDs, while the course-export fixtures keep
 6-digit ones so the padding stays exercised. Records already saved in the older
 forms are covered by item 8.
 
-### Installer removed; runs from `run_app.command` — ✅ done
+### Installer removed; runs from a conda environment — ✅ done
 
 The py2app/DMG build is gone: `packaging/` (build scripts), `build/`, and
 `dist/` (the 1.9 GB app bundle and DMG) were moved to the Trash, and the
@@ -1392,17 +1403,19 @@ build-only packages (`py2app`, `setuptools<81`, `jaraco.text`) were removed from
 `requirements.txt` and `venv/`. The DMG had last been built in July 2026 and was
 missing every feature since.
 
-`run_app.command` is now the only way to run the app, and it sets itself up:
+`run_app.command` replaced it: one file that rebuilt its own `venv/` from
+`requirements.txt` whenever the folder was copied, found any Python 3.9–3.13
+including macOS's own, and kept the Terminal window open on an error.
 
-- **Rebuilds its environment when needed.** A `venv/` is tied to the Mac and
-  Python it was built with — this one points at a conda install in
-  `/opt/miniconda3` — so a copied folder won't run as-is. The launcher checks
-  that `venv/` exists, that its interpreter runs, and that PySide6, pandas,
-  openpyxl and matplotlib are installed. If any check fails, it rebuilds
-  `venv/` from `requirements.txt`.
-- **Finds a suitable Python.** It uses the first Python 3.9–3.13 it finds,
-  including the one built into macOS. The code was checked to run on 3.9.
-- **Keeps error messages readable.** If setup or the app fails, the Terminal
-  window stays open so the message can be read.
+**Superseded 2026-11-06 by `install examgradetool.command` and `open
+examgradetool.command`** (see "How to run it" above), when the folder moved to
+an external drive. `run_app.command` is deleted.
 
-`--check` reports whether setup is needed without installing anything.
+Why the change was worth making: a `venv/` is tied to the absolute path it was
+built at — this one's `pip` carried a shebang pointing at the old Desktop
+folder, and `pyvenv.cfg` at `/opt/miniconda3/envs/examtool` — so moving the
+folder broke it every time, and it was 1.3 GB of the folder's 1.3 GB. Keeping
+the environment in conda instead means the folder is a few MB, a copy needs no
+rebuild, and the one install is shared by every copy on the Mac. Splitting
+install from open also means the thing you double-click to grade an exam never
+decides to spend five minutes downloading packages first.
