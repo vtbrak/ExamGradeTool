@@ -39,7 +39,11 @@ COLUMNS = [
     "Individual Key Used",
     "Group Score (Original)",
     "Group Score (Used)",
+    # Final Grade is always the original score. The curve, when there is one,
+    # goes in its own column so the original is never overwritten; on an exam
+    # without a curve that column is simply blank.
     "Final Grade",
+    "Curved Grade",
     "Final %",
     "Missing Score Flag",
 ]
@@ -48,13 +52,14 @@ KEY_USED_COL = 4
 GROUP_ORIGINAL_COL = 5
 GROUP_USED_COL = 6
 FINAL_GRADE_COL = 7
-FINAL_PERCENT_COL = 8
-MISSING_FLAG_COL = 9
+CURVED_GRADE_COL = 8
+FINAL_PERCENT_COL = 9
+MISSING_FLAG_COL = 10
 EDITABLE_COLUMNS = {INDIVIDUAL_SCORE_COL, GROUP_ORIGINAL_COL}
 # Columns whose values are always short, fixed-format numbers/codes -- size
 # them to their content instead of stretching, so Missing Score Flag (the
 # one column with real variable-length text) gets the freed-up space.
-NARROW_COLUMNS = {2, 3, 4, 5, 6, 7, 8}  # Student ID .. Final %
+NARROW_COLUMNS = {2, 3, 4, 5, 6, 7, 8, 9}  # Student ID .. Final %
 
 
 def _out_of(possible_points) -> str:
@@ -279,7 +284,10 @@ class ResultsView(QWidget):
                 ("" if m.raw_group_score is None else str(m.raw_group_score), m.raw_group_score),
                 (group_used_display, g.effective_group_score),
                 ("" if g.final_grade is None else str(round(g.final_grade, 2)), g.final_grade),
-                # Reported alongside the raw score, and the one to read across
+                # Blank unless the exam is curved.
+                ("" if g.curved_grade is None else str(g.curved_grade), g.curved_grade),
+                # The percentage of the grade the student receives -- the
+                # curved one when there is a curve -- and the one to read across
                 # semesters: the same exam has been out of 50, 72, and 80
                 # points in different terms, so raw scores aren't comparable.
                 ("" if g.percent is None else f"{g.percent:.1f}%", g.percent),
@@ -531,10 +539,16 @@ class ResultsView(QWidget):
         # Individual / Group (Used) / Final are grouped first, contiguous, so
         # that block alone can be selected and pasted straight into the CMS.
         # A blank spacer column separates it from the reference-only columns
-        # (original group score, whether it was replaced, and the form
-        # letter) that shouldn't get swept into that paste. Final % sits just
-        # past the spacer rather than beside Final Score for that reason --
-        # the CMS gradebook column takes raw points, not a percentage.
+        # (original group score, whether it was replaced, the original exam
+        # score, whether the exam was curved, and the form letter) that
+        # shouldn't get swept into that paste. Final % sits just past the
+        # spacer rather than beside Final Score for that reason -- the CMS
+        # gradebook column takes raw points, not a percentage.
+        #
+        # On a curved exam, Final Score (column F) is the curved score: it is
+        # the one pasted into D2L, so it has to be what the student receives.
+        # Original Exam Score always holds the uncurved grade, curved exam or
+        # not, so the score before the curve is never lost in an export.
         with open(path, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(
@@ -549,9 +563,12 @@ class ResultsView(QWidget):
                     "Final %",
                     "Group Score (Original)",
                     "Group Score Replaced",
+                    "Original Exam Score",
+                    "Curved",
                     "Form Letter",
                 ]
             )
+            curved = "Yes" if self.curve_points else "No"
             for m in self.matched_students:
                 g = m.grade
                 writer.writerow(
@@ -561,11 +578,13 @@ class ResultsView(QWidget):
                         m.student_id,
                         m.individual_score if m.individual_score is not None else "",
                         g.effective_group_score if g.effective_group_score is not None else "",
-                        round(g.final_grade, 2) if g.final_grade is not None else "",
+                        g.grade_received if g.grade_received is not None else "",
                         "",
                         round(g.percent, 1) if g.percent is not None else "",
                         m.raw_group_score if m.raw_group_score is not None else "",
                         "Yes" if g.override_original_group_score is not None else "",
+                        g.final_grade if g.final_grade is not None else "",
+                        curved,
                         m.individual_key_used or "",
                     ]
                 )

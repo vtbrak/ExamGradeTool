@@ -61,7 +61,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     schema.sql is all CREATE TABLE IF NOT EXISTS, so brand-new databases are
     handled there; this only covers columns added to tables that already exist
     in a user's live grades.db."""
-    _add_missing_columns(conn, "exam_scores", {"source": "TEXT"})
+    _add_missing_columns(conn, "exam_scores", {"source": "TEXT", "curved_grade": "REAL"})
     _add_missing_columns(conn, "course_offerings", {"closed_at": "TEXT"})
     # Added with no NOT NULL: ALTER TABLE cannot backfill, so existing
     # rows get NULL and every reader treats NULL as "no curve".
@@ -482,14 +482,15 @@ def save_matched_students(
                 """
                 INSERT INTO exam_scores (
                     exam_id, student_id, individual_score, raw_group_score,
-                    effective_group_score, final_grade, individual_key_used,
-                    missing_flag, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    effective_group_score, final_grade, curved_grade,
+                    individual_key_used, missing_flag, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(exam_id, student_id) DO UPDATE SET
                     individual_score = excluded.individual_score,
                     raw_group_score = excluded.raw_group_score,
                     effective_group_score = excluded.effective_group_score,
                     final_grade = excluded.final_grade,
+                    curved_grade = excluded.curved_grade,
                     individual_key_used = excluded.individual_key_used,
                     missing_flag = excluded.missing_flag,
                     updated_at = excluded.updated_at
@@ -501,6 +502,7 @@ def save_matched_students(
                     m.raw_group_score,
                     g.effective_group_score,
                     g.final_grade,
+                    g.curved_grade,
                     m.individual_key_used,
                     g.missing_flag,
                     now,
@@ -515,7 +517,7 @@ def save_matched_students(
 def get_exam_pass_stats(conn: sqlite3.Connection, exam_id: int) -> dict:
     rows = conn.execute(
         """
-        SELECT es.final_grade / e.possible_points * 100 AS percent
+        SELECT COALESCE(es.curved_grade, es.final_grade) / e.possible_points * 100 AS percent
         FROM exam_scores es
         JOIN exams e ON e.id = es.exam_id
         WHERE es.exam_id = ? AND es.final_grade IS NOT NULL AND e.possible_points > 0

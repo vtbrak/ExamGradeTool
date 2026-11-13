@@ -47,11 +47,22 @@ class GradeResult:
     missing_flag: Optional[str]
     percent: Optional[float]
     passed: Optional[bool]
-    # Points added to the whole exam, and what the blend came to before they
-    # were added. Kept so the curve stays visible rather than disappearing
-    # into a final grade nobody can account for.
+    # The curve, kept apart from final_grade so the original score is never
+    # overwritten: final_grade is always what the student earned, and
+    # curved_grade is what they receive once the curve is added. None when the
+    # exam isn't curved, or when there is no final grade to curve.
     curve_points: float = 0.0
-    uncurved_final_grade: Optional[float] = None
+    curved_grade: Optional[float] = None
+
+    @property
+    def grade_received(self) -> Optional[float]:
+        """The score that counts: the curved grade if there is one, otherwise
+        the original. This is what goes in the D2L Final Score column."""
+        return self.curved_grade if self.curved_grade is not None else self.final_grade
+
+    @property
+    def curved(self) -> bool:
+        return self.curved_grade is not None
 
     @property
     def curve_capped(self) -> bool:
@@ -59,11 +70,9 @@ class GradeResult:
 
         Worth showing: a student already near the top gets less of the curve
         than everyone else, which is a question someone will eventually ask."""
-        if self.final_grade is None or self.uncurved_final_grade is None:
+        if self.curved_grade is None or self.final_grade is None:
             return False
-        return self.curve_points > 0 and (
-            self.final_grade < self.uncurved_final_grade + self.curve_points
-        )
+        return self.curved_grade < round(self.final_grade + self.curve_points, 2)
 
 
 def compute_grade(
@@ -80,11 +89,14 @@ def compute_grade(
     the real Group score is preserved via override_original_group_score so it
     stays visible even though it isn't used in the calculation.
 
-    `curve_points` is added to every student's final grade, **capped at the
-    exam's point total**: a curve can lift a score to full marks but never past
-    them, so no one finishes with more points than the exam was worth. The cap
-    is applied here rather than at the call sites so that the percentage, the
-    pass/fail line, the saved score and the D2L export all see the same number.
+    `curve_points` produces a separate `curved_grade` -- the final grade plus
+    the curve, **capped at the exam's point total**, so no one finishes with
+    more points than the exam was worth. `final_grade` itself is left as the
+    original score.
+
+    The percentage and pass/fail follow the grade the student *receives* (the
+    curved one when there is a curve), so the Dashboard, the pass line and the
+    D2L export all see the same number as the Final Score column.
     """
     if individual_score is None or raw_group_score is None:
         missing = []
@@ -106,17 +118,23 @@ def compute_grade(
 
     overridden = individual_score > raw_group_score
     effective_group_score = individual_score if overridden else raw_group_score
-    uncurved = INDIVIDUAL_WEIGHT * individual_score + GROUP_WEIGHT * effective_group_score
-
-    final_grade = uncurved + (curve_points or 0.0)
-    if possible_points:
-        # The cap. A curve can take a student to full marks and no further.
-        final_grade = min(final_grade, possible_points)
     # Rounded because the blend produces values like 41.60000000000001, which
     # would otherwise show up in the gradebook and in exported CSVs.
-    final_grade = round(final_grade, 2)
+    final_grade = round(
+        INDIVIDUAL_WEIGHT * individual_score + GROUP_WEIGHT * effective_group_score, 2
+    )
 
-    percent = (final_grade / possible_points * 100) if possible_points else None
+    curve_points = curve_points or 0.0
+    curved_grade = None
+    if curve_points:
+        curved_grade = final_grade + curve_points
+        if possible_points:
+            # The cap. A curve can take a student to full marks and no further.
+            curved_grade = min(curved_grade, possible_points)
+        curved_grade = round(curved_grade, 2)
+
+    received = curved_grade if curved_grade is not None else final_grade
+    percent = (received / possible_points * 100) if possible_points else None
     passed = percent is not None and percent >= PASS_THRESHOLD_PERCENT
 
     return GradeResult(
@@ -129,6 +147,6 @@ def compute_grade(
         missing_flag=None,
         percent=percent,
         passed=passed,
-        curve_points=curve_points or 0.0,
-        uncurved_final_grade=round(uncurved, 2),
+        curve_points=curve_points,
+        curved_grade=curved_grade,
     )

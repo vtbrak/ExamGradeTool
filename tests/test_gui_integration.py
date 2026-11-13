@@ -214,8 +214,12 @@ def test_save_prompts_overwrite_and_export_writes_expected_csv(window, monkeypat
         "Final %",
         "Group Score (Original)",
         "Group Score Replaced",
+        "Original Exam Score",
+        "Curved",
         "Form Letter",
     ]
+    # The D2L paste block is still D-F, with Final Score in column F.
+    assert header.index("Final Score") == 5
     by_id = {row[2]: dict(zip(header, row)) for row in data_rows}
     assert by_id["1000001"]["Individual Score"] == "40.0"
     assert by_id["1000001"]["Group Score (Used)"] == "42.0"
@@ -225,6 +229,9 @@ def test_save_prompts_overwrite_and_export_writes_expected_csv(window, monkeypat
     assert by_id["1000001"]["Final %"] == "81.6"
     assert by_id["1000001"]["Group Score (Original)"] == "42.0"
     assert by_id["1000001"]["Group Score Replaced"] == ""
+    # Not curved: the original score is filled in regardless, and matches F.
+    assert by_id["1000001"]["Original Exam Score"] == "40.8"
+    assert by_id["1000001"]["Curved"] == "No"
     assert by_id["1000001"]["Form Letter"] == "A"
 
 

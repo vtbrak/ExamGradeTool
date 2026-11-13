@@ -42,7 +42,11 @@ CREATE TABLE IF NOT EXISTS exam_scores (
     individual_score REAL,
     raw_group_score REAL,
     effective_group_score REAL,
+    -- Always the original score, never curved, so it is kept intact.
     final_grade REAL,
+    -- final_grade plus the exam's curve, capped at its point total. NULL when
+    -- the exam has no curve -- which is most of them.
+    curved_grade REAL,
     individual_key_used TEXT,
     missing_flag TEXT,
     updated_at TEXT NOT NULL,

@@ -656,6 +656,31 @@ enforces it. Written up in `CLAUDE.md`:
 
 ## Done
 
+### Curving an exam — ✅ 2026-11-13
+
+A **Curve** box on the Results tab adds the same number of points to every
+student, as it is typed. **No score may exceed the exam's point total**: the
+curve is capped there, and the screen says how many students the cap held back,
+since they receive less of the curve than everyone else.
+
+**The original score is never overwritten.**
+
+- *Results table:* **Final Grade** is always the original. A new **Curved
+  Grade** column beside it holds the curved score, and is blank on an exam with
+  no curve — which is most of them. Final % follows the grade the student
+  receives.
+- *Database:* `exam_scores.final_grade` is the original and
+  `exam_scores.curved_grade` the curved score (NULL when uncurved). The curve
+  itself is also stored on the exam (`exams.curve_points`), because reopening
+  an exam recomputes every grade from the Individual and Group scores — so the
+  curve comes back with it, and is not applied twice.
+- *D2L export:* **Final Score stays in column F** — the paste block D–F is
+  unchanged — and holds the curved score on a curved exam. After **Group Score
+  Replaced** come two reference columns: **Original Exam Score** (the uncurved
+  grade, filled on every export) and **Curved** (Yes / No).
+
+A missing score is never curved into a real one. `tests/test_curve.py`.
+
 ### Exercised on real exams — ✅ 2026-11-03
 
 The instructor ran this version on **two real exams, with every path working**.
