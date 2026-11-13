@@ -24,6 +24,12 @@ CREATE TABLE IF NOT EXISTS exams (
     course_offering_id INTEGER NOT NULL REFERENCES course_offerings (id),
     exam_name TEXT NOT NULL,
     possible_points REAL,
+    -- Points added to every student's final grade on this exam, capped at
+    -- possible_points. Stored on the exam rather than baked into each saved
+    -- score: reopening a saved exam recomputes the final grade from the
+    -- Individual and Group scores, so a curve living only in the saved final
+    -- would vanish the moment the exam was reopened.
+    curve_points REAL NOT NULL DEFAULT 0,
     UNIQUE (course_offering_id, exam_name)
 );
 

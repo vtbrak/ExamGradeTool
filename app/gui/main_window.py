@@ -276,7 +276,9 @@ class MainWindow(QMainWindow):
             return
         exam = exams[names.index(name)]
 
-        exam_name, possible_points, matched = store.load_saved_exam(self.db_conn, exam["id"])
+        exam_name, possible_points, matched, curve_points = store.load_saved_exam(
+            self.db_conn, exam["id"]
+        )
         self.current_offering_id = offering_id
         self.current_exam_id = exam["id"]
         self.current_possible_points = possible_points
@@ -293,6 +295,7 @@ class MainWindow(QMainWindow):
             matched_students=matched,
             duplicates={"individual": {}, "group": {}},
             possible_points=possible_points,
+            curve_points=curve_points,
         )
         self.dashboard_view.load_results(matched, possible_points, exam_name)
         self.tabs.setCurrentWidget(self.results_view)

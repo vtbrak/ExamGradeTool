@@ -47,12 +47,30 @@ class GradeResult:
     missing_flag: Optional[str]
     percent: Optional[float]
     passed: Optional[bool]
+    # Points added to the whole exam, and what the blend came to before they
+    # were added. Kept so the curve stays visible rather than disappearing
+    # into a final grade nobody can account for.
+    curve_points: float = 0.0
+    uncurved_final_grade: Optional[float] = None
+
+    @property
+    def curve_capped(self) -> bool:
+        """True when the curve was trimmed to keep the score within the exam.
+
+        Worth showing: a student already near the top gets less of the curve
+        than everyone else, which is a question someone will eventually ask."""
+        if self.final_grade is None or self.uncurved_final_grade is None:
+            return False
+        return self.curve_points > 0 and (
+            self.final_grade < self.uncurved_final_grade + self.curve_points
+        )
 
 
 def compute_grade(
     individual_score: Optional[float],
     raw_group_score: Optional[float],
     possible_points: float,
+    curve_points: float = 0.0,
 ) -> GradeResult:
     """Blend an Individual (A/B) score with a Group (C) score.
 
@@ -61,6 +79,12 @@ def compute_grade(
     the Individual score is substituted in for the Group side of the blend, and
     the real Group score is preserved via override_original_group_score so it
     stays visible even though it isn't used in the calculation.
+
+    `curve_points` is added to every student's final grade, **capped at the
+    exam's point total**: a curve can lift a score to full marks but never past
+    them, so no one finishes with more points than the exam was worth. The cap
+    is applied here rather than at the call sites so that the percentage, the
+    pass/fail line, the saved score and the D2L export all see the same number.
     """
     if individual_score is None or raw_group_score is None:
         missing = []
@@ -82,7 +106,16 @@ def compute_grade(
 
     overridden = individual_score > raw_group_score
     effective_group_score = individual_score if overridden else raw_group_score
-    final_grade = INDIVIDUAL_WEIGHT * individual_score + GROUP_WEIGHT * effective_group_score
+    uncurved = INDIVIDUAL_WEIGHT * individual_score + GROUP_WEIGHT * effective_group_score
+
+    final_grade = uncurved + (curve_points or 0.0)
+    if possible_points:
+        # The cap. A curve can take a student to full marks and no further.
+        final_grade = min(final_grade, possible_points)
+    # Rounded because the blend produces values like 41.60000000000001, which
+    # would otherwise show up in the gradebook and in exported CSVs.
+    final_grade = round(final_grade, 2)
+
     percent = (final_grade / possible_points * 100) if possible_points else None
     passed = percent is not None and percent >= PASS_THRESHOLD_PERCENT
 
@@ -96,4 +129,6 @@ def compute_grade(
         missing_flag=None,
         percent=percent,
         passed=passed,
+        curve_points=curve_points or 0.0,
+        uncurved_final_grade=round(uncurved, 2),
     )

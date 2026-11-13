@@ -21,4 +21,7 @@ venv/
 __pycache__/
 *.pyc
 .pytest_cache/
+# Where the test run puts its temporary files (tests/conftest.py). Removed at
+# the end of a run, and cleared at the start of the next one.
+.pytest-tmp/
 .DS_Store

@@ -3,6 +3,7 @@ from datetime import datetime
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
+    QDoubleSpinBox,
     QFileDialog,
     QHBoxLayout,
     QHeaderView,
@@ -26,6 +27,9 @@ from app.gui.widgets import add_group_separator, with_hint
 # "44.0 *" when overridden, but must still sort as the number 44.0.
 SORT_ROLE = Qt.ItemDataRole.UserRole + 1
 STUDENT_ID_ROLE = Qt.ItemDataRole.UserRole + 2
+
+# A curve larger than this is far more likely to be a typo than a decision.
+CURVE_MAXIMUM = 100.0
 
 COLUMNS = [
     "Last Name",
@@ -90,6 +94,7 @@ class ResultsView(QWidget):
         self.matched_students = []
         self.exam_name = None
         self.possible_points = None
+        self.curve_points = 0.0
         self.duplicates = {"individual": {}, "group": {}}
         self.id_problems = []
         self._students_by_id = {}
@@ -138,6 +143,31 @@ class ResultsView(QWidget):
         # just imported -- the one Results and Dashboard are showing. The second
         # reaches for an exam already on record, which is a different job and
         # was easy to hit by mistake while working through a scan.
+        # The curve sits with the buttons that act on this exam, left of the
+        # divider. It applies as it is typed -- a curve is something you try a
+        # value of and look at, not something you commit to.
+        curve_row = QHBoxLayout()
+        self.curve_label = QLabel("Curve — add points to every student:")
+        curve_row.addWidget(self.curve_label)
+        self.curve_box = QDoubleSpinBox()
+        self.curve_box.setDecimals(2)
+        self.curve_box.setSingleStep(0.5)
+        self.curve_box.setMinimum(0.0)
+        self.curve_box.setMaximum(CURVE_MAXIMUM)
+        self.curve_box.setSuffix(" points")
+        self.curve_box.setToolTip(
+            "Added to every student's final grade, then capped at the exam's "
+            "point total — a curve can take someone to full marks but never "
+            "past them, so no one ends up with more points than the exam was "
+            "worth. Saved with the exam, so reopening it keeps the curve."
+        )
+        self.curve_box.valueChanged.connect(self._on_curve_changed)
+        curve_row.addWidget(with_hint(self.curve_box))
+        self.curve_note = QLabel("")
+        self.curve_note.setWordWrap(True)
+        curve_row.addWidget(self.curve_note, 1)
+        layout.addLayout(curve_row)
+
         button_row = QHBoxLayout()
 
         self.recalculate_button = QPushButton("Recalculate")
@@ -191,7 +221,13 @@ class ResultsView(QWidget):
         self.layout().insertWidget(0, widget)
 
     def load_results(
-        self, exam_name, matched_students, duplicates, possible_points, id_problems=()
+        self,
+        exam_name,
+        matched_students,
+        duplicates,
+        possible_points,
+        id_problems=(),
+        curve_points=0.0,
     ):
         self.exam_name = exam_name
         self.matched_students = matched_students
@@ -199,6 +235,16 @@ class ResultsView(QWidget):
         self.id_problems = list(id_problems)
         self.possible_points = possible_points
         self._students_by_id = {m.student_id: m for m in matched_students}
+
+        # Set without firing valueChanged: the grades handed in here were
+        # computed with this curve already, and re-applying it from the signal
+        # would be a second pass over the same numbers.
+        self.curve_points = float(curve_points or 0.0)
+        self.curve_box.blockSignals(True)
+        self.curve_box.setValue(self.curve_points)
+        self.curve_box.blockSignals(False)
+        if self.curve_points:
+            self._recompute_all_grades()
 
         missing_count = sum(1 for m in matched_students if m.grade.missing_flag)
         self.summary_label.setText(
@@ -208,6 +254,7 @@ class ResultsView(QWidget):
         self.save_status_label.setText("")
         self._render_table()
         self._render_duplicates()
+        self._render_curve_note()
 
     def _render_table(self):
         self._suspend_item_signal = True
@@ -326,7 +373,44 @@ class ResultsView(QWidget):
 
     def _recompute_all_grades(self):
         for m in self.matched_students:
-            m.grade = compute_grade(m.individual_score, m.raw_group_score, self.possible_points)
+            m.grade = compute_grade(
+                m.individual_score,
+                m.raw_group_score,
+                self.possible_points,
+                self.curve_points,
+            )
+
+    def _on_curve_changed(self, value: float):
+        """Apply the curve as it is typed, and say what it did."""
+        self.curve_points = float(value)
+        if not self.matched_students:
+            self._render_curve_note()
+            return
+        self._recompute_all_grades()
+        self._render_table()
+        self._render_curve_note()
+        self.main_window.dashboard_view.load_results(
+            self.matched_students, self.possible_points, self.exam_name
+        )
+
+    def _render_curve_note(self):
+        """How many students the cap actually bit for.
+
+        Without this the curve looks uniform, and a student near the top who
+        received less of it than everyone else is a question nobody can answer
+        from the screen."""
+        if not self.curve_points:
+            self.curve_note.setText("")
+            return
+        capped = [m for m in self.matched_students if m.grade.curve_capped]
+        if not capped:
+            self.curve_note.setText("")
+            return
+        total = self.possible_points
+        self.curve_note.setText(
+            f"{len(capped)} student(s) capped at {total:g} — they get less "
+            "than the full curve."
+        )
 
     def _recalculate(self):
         if not self.matched_students:
@@ -340,6 +424,7 @@ class ResultsView(QWidget):
             f"{missing_count} missing a score."
         )
         self._render_table()
+        self._render_curve_note()
         self.main_window.dashboard_view.load_results(
             self.matched_students, self.possible_points, self.exam_name
         )
@@ -390,12 +475,17 @@ class ResultsView(QWidget):
             if reply != QMessageBox.StandardButton.Yes:
                 return
 
+        # The curve belongs to the exam, and has to be saved with the scores
+        # it produced -- reopening recomputes from Individual and Group, so an
+        # unsaved curve would silently disappear.
+        store.set_exam_curve(conn, exam_id, self.curve_points)
         store.save_matched_students(conn, exam_id, self.matched_students)
 
         count = len(self.matched_students)
+        curved = f", curve +{self.curve_points:g}" if self.curve_points else ""
         self.save_status_label.setText(
-            f"Exam scores saved — {count} student{'' if count == 1 else 's'} "
-            f"at {datetime.now().strftime('%I:%M %p').lstrip('0')}."
+            f"Exam scores saved — {count} student{'' if count == 1 else 's'}"
+            f"{curved} at {datetime.now().strftime('%I:%M %p').lstrip('0')}."
         )
 
         # A point mismatch is about this save in particular and needs a

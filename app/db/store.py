@@ -63,6 +63,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
     in a user's live grades.db."""
     _add_missing_columns(conn, "exam_scores", {"source": "TEXT"})
     _add_missing_columns(conn, "course_offerings", {"closed_at": "TEXT"})
+    # Added with no NOT NULL: ALTER TABLE cannot backfill, so existing
+    # rows get NULL and every reader treats NULL as "no curve".
+    _add_missing_columns(conn, "exams", {"curve_points": "REAL"})
     # Scores an older database kept in exam_scores under the imported flag are
     # the class record and belong in its table. Moved rather than left behind,
     # where no record view would ever find them again.
@@ -1387,8 +1390,11 @@ def list_reopenable_exams(conn: sqlite3.Connection, course_offering_id: int) -> 
 def load_saved_exam(conn: sqlite3.Connection, exam_id: int) -> tuple:
     """Rebuild a saved exam as if its file had just been run.
 
-    Returns `(exam_name, possible_points, matched_students)`, ready for
-    `ResultsView.load_results`."""
+    Returns `(exam_name, possible_points, matched_students, curve_points)`,
+    ready for `ResultsView.load_results`. The curve comes back with them
+    because reopening recomputes each final grade from the Individual and
+    Group scores -- without it, reopening a curved exam would quietly drop the
+    curve."""
     from app.core.matching import match_rows
 
     row = conn.execute(
@@ -1400,7 +1406,30 @@ def load_saved_exam(conn: sqlite3.Connection, exam_id: int) -> tuple:
         get_existing_round_rows(conn, exam_id, "individual"),
         get_existing_round_rows(conn, exam_id, "group"),
     )
-    return row["exam_name"], row["possible_points"], matched
+    return row["exam_name"], row["possible_points"], matched, get_exam_curve(conn, exam_id)
+
+
+def get_exam_curve(conn: sqlite3.Connection, exam_id: int) -> float:
+    """Points added to every student's final grade on this exam.
+
+    NULL means no curve: the column was added to exams that already existed,
+    and ALTER TABLE cannot backfill."""
+    row = conn.execute(
+        "SELECT curve_points FROM exams WHERE id = ?", (exam_id,)
+    ).fetchone()
+    if row is None or row["curve_points"] is None:
+        return 0.0
+    return float(row["curve_points"])
+
+
+def set_exam_curve(conn: sqlite3.Connection, exam_id: int, curve_points: float) -> None:
+    """Record the curve for an exam. Saved with the scores, so reopening the
+    exam recomputes the same final grades rather than losing the curve."""
+    with conn:
+        conn.execute(
+            "UPDATE exams SET curve_points = ? WHERE id = ?",
+            (float(curve_points or 0.0), exam_id),
+        )
 
 
 # ---------------------------------------------------------------------------

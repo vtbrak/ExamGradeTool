@@ -13,9 +13,41 @@ file, so the same mistake can't reach anything real. Tests that are *about* the
 resolution rules override it deliberately (see test_dev_data_isolation.py).
 """
 
+import shutil
+from pathlib import Path
+
 import pytest
 
 from app.db import config
+
+# Where pytest puts tmp_path and friends. Inside the project (gitignored), not
+# the computer's temporary folder: the main disk is nearly full, this drive is
+# not, and a folder here is visible rather than buried under /var/folders.
+TEMP_ROOT = Path(__file__).resolve().parent.parent / ".pytest-tmp"
+
+
+def pytest_configure(config):  # noqa: F811 - pytest matches hooks by argument name
+    """Point --basetemp at TEMP_ROOT unless the run asked for somewhere else.
+
+    pytest clears an explicit basetemp at the start of every session, so a
+    folder left behind by a run that was killed is removed by the next one.
+
+    The argument has to be called `config`; that it shadows `app.db.config` for
+    the length of this function is harmless, since this function doesn't use
+    it."""
+    if not config.getoption("basetemp"):
+        TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        config.option.basetemp = TEMP_ROOT
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _remove_temp_root():
+    """And take it away again when the run ends, pass or fail.
+
+    pytest on its own keeps the last three runs' directories; across a suite
+    that writes databases and exported CSVs that adds up."""
+    yield
+    shutil.rmtree(TEMP_ROOT, ignore_errors=True)
 
 
 @pytest.fixture(autouse=True)
